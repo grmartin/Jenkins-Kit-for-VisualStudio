@@ -1,24 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.XPath;
 using System.Xml.Xsl;
-using System.IO;
-using System.Diagnostics;
-using System.Threading.Tasks;
+
 using Microsoft.Win32;
-using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.Coverage.Analysis;
-using System.Reflection;
 
 namespace JenkinsKit
 {
     class Program
     {
-
-
         static void Main(string[] args)
         {
             if (args.Length == 0)
@@ -71,7 +70,7 @@ namespace JenkinsKit
             }
             catch (ArgumentException ex)
             {
-                // Syntax error in the regular expression
+                throw new Exception("Cannot parse code coverage file path from output.", ex);
             }
 
             string binaryCoverageReport = resultString.Trim() + ".coverage";
@@ -90,8 +89,6 @@ namespace JenkinsKit
             
             string xslt = null;
 
-            //string[] names = Assembly.GetExecutingAssembly().GetManifestResourceNames();
-
             using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("JenkinsKit.MSCoverageToEmma.xslt"))
             using (StreamReader reader = new StreamReader(stream))
             { 
@@ -100,10 +97,9 @@ namespace JenkinsKit
 
             myXslTrans.Load(XmlReader.Create(new StringReader(xslt)));
 
-
+            // We are going to generate ugly XML, but this is likely due to an untraced issue with the XSLT forcing us to handle the XML as a Fragment not a Document.
             XmlWriterSettings settings = new XmlWriterSettings();
             settings.Indent = true;
-            //settings.NewLineOnAttributes = true;
             settings.OmitXmlDeclaration = false;
             settings.IndentChars = "\t";
             settings.WriteEndDocumentOnClose = true;
@@ -112,7 +108,6 @@ namespace JenkinsKit
 
             XmlWriter myWriter = XmlWriter.Create(args[2], settings);
 
-            
             myXslTrans.Transform(myXPathDoc, null, myWriter);
         }
 
@@ -124,7 +119,7 @@ namespace JenkinsKit
             Console.WriteLine("");
         }
 
-        public static class PathUtilities {
+        protected static class PathUtilities {
             public static string pathToVisualStudio() {
                 string[] versionsByPreference = new string[] {"12.0", "11.0", "10.0"};
 
@@ -145,7 +140,11 @@ namespace JenkinsKit
             }
 
             public static string pathToVSTest() {
-                return String.Format("{0}\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow\\vstest.console.exe", pathToVisualStudio());
+                string vsPath = pathToVisualStudio();
+
+                if (vsPath == null) throw new Exception("Cannot find Visual Studio installation.");
+
+                return String.Format("{0}\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow\\vstest.console.exe", vsPath);
             }
         }
     }
